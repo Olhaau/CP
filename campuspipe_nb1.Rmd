@@ -1,0 +1,134 @@
+---
+title: "Campuspipe progress"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_depth: 4  # upto three depths of headings (specified by #, ##, ...)
+    #number_sections: true  ## if you want number sections at each table header
+    theme: united  # many options for theme, this one is my favorite.
+    highlight: tango  # specifies the syntax highlighting style
+---
+```{r}
+# Clean all
+rm(list = ls())
+while(!is.null(dev.list())) dev.off()
+```
+
+
+# Use Case 0: Studidata (Sprint 0, 1)
+Own R-Package acKI, tests of python, R, incl. mlr3, ...
+
+# Use Case 1: Microcensus panel split-combine
+## Read the data
+
+```{r}
+# parameter
+product  = "01_Microzensus_SplitCombine1"
+dat_file = "fdz_cf_mz_panel_stata.dta"
+dat_name = "mcpanel"
+
+# read the data from .rda if existing, else read dat_file and save as .rda
+wd = paste0('C:/Users/Asus/Documents/01_code/20220104_CampusPipe/products', "/", product)
+dat_wd = paste0(wd, "/", "daten")
+
+
+
+if (paste0(dat_name, ".rda") %in% list.files(dat_wd)){
+  load(paste0(dat_wd,"/",dat_name, ".rda"))
+} else {
+  df = haven::read_dta(paste(dat_wd,dat_file, sep = "/"))
+  save(df, file = paste0(dat_wd, "/", dat_name, ".rda"))
+  write.csv2(df, file = "daten/mcpanel.csv", row.names = FALSE)
+}
+
+rm(dat_file, dat_name, product, dat_wd)
+
+head(df, 10)
+
+```
+
+## Estimation for the most recent microcensus
+Um herauszufinden, ob eine Schätzung einer interessierenden Größe anhand der anderen Variablen überhaupt Sinn macht, schätzen wir zunächst innerhalb des neusten Mikrozensus (MC) z.B. das individuelle Einkommen (ef566) aus den anderen Variablen. Ein nächster Schritt könnte sein, aus den alten MZ z.B. ef566 auf den neuesten Datensatz zu übertragen. Zunächst direkt, danach unter Berücksichtigung des Zusammenhangs zwischen den DS (Strukturunterschiede).
+
+### Create the Dataset and short EDA 
+
+Only the most recent MC:
+```{r}
+df1 = df[!grepl("af|bf|cf",colnames(df))]
+df1[df1 < 0] = NA       # if val < 0 the observation is missing (or droped in the CF)
+df1$df566 = as.factor(df1$df566)
+df1 = labelled::remove_labels(df1)
+save(df1, file = paste0(wd,"/daten/", "mcpanel1", ".rda"))
+```
+Distribution of the Target:
+```{r}
+# show the distribution of the target
+hist_dat = table(df1["df566"])
+# table
+hist_dat
+```
+and its plot:
+```{r}
+library(ggplot2)
+ggplot(df1, aes(x=df566)) +
+  geom_bar()
+```
+--> Many missings, use mlr3's auto preprocessing
+--> test for mlr3: extra preprocessing steps, multiple models, pipeline optimization
+
+### Fast training (mlr3, auto preprocess, direct answer)
+caution: sometimes the task creation does not work (bug), reinstalling mlr3 works s. https://stackoverflow.com/questions/68576432/why-does-my-mlr3-classification-task-have-no-features
+
+Retrieve the data:
+```{r}
+product  = "01_Microzensus_SplitCombine1"
+wd = paste0('C:/Users/Asus/Documents/01_code/20220104_CampusPipe/products', "/", product)
+load(file = paste0(wd,"/daten/", "mcpanel1", ".rda"))
+rm(wd, product)
+```
+
+Load mlr3 and create a task:
+```{r}
+library(mlr3)
+task = TaskClassif$new(id = "1", backend = df1, target = "df566")
+task
+
+if (is.null(task$feature_names)){
+  detach("package:mlr3", unload = TRUE)
+  remove.packages("mlr3")
+  install.packages("mlr3")
+  library(mlr3)
+  task = TaskClassif$new(id = "1", backend = df1, target = "df566")
+}
+
+```
+
+
+
+### Basic Model + Pipeline optimization
+
+### Integrate further preprocessings/measures/...
+
+
+
+
+## Create and Combine a Datasplit
+### 3 Datasets, subsample most recent
+e.g. random split, dependent subsample
+
+
+# Appendix {-}
+## Z: Basic R-Markdown {-}
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
